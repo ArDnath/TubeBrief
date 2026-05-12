@@ -22,12 +22,17 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.use(
   "*",
   cors({
-    origin: "*",
-    allowMethods: ["GET", "OPTIONS"],
-    allowHeaders: ["Content-Type"],
+    origin: (origin) => {
+      // Allow all origins for this public API, or you can whitelist specific domains here
+      return origin || "*";
+    },
+    allowMethods: ["GET", "POST", "OPTIONS"],
+    allowHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+    exposeHeaders: ["Content-Length", "X-Kuma-Revision"],
+    maxAge: 86400, // Cache preflight for 24 hours
+    credentials: false, // Set to true only if you need to send cookies/sessions
   }),
 );
-
 app.get("/health", (c) => c.json({ status: "ok", ts: Date.now() }));
 
 function normaliseYouTubeUrl(raw: string): string | null {
