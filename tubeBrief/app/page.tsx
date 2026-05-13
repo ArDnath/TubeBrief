@@ -1,6 +1,8 @@
 "use client";
-import { useState } from "react";
+import { useState, useRef } from "react";
+import Image from "next/image";
 import { Card } from "@/components/ui/card";
+import { HologramShaders } from "@/components/ui/hologram";
 import UrlInput from "@/components/url-input";
 import SummaryDisplay from "@/components/summary-display";
 
@@ -9,188 +11,243 @@ export default function Page() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
+  // Micro-interaction states
+  const [logoGlitch, setLogoGlitch] = useState(false);
+  const [titleGlitch, setTitleGlitch] = useState(false);
+  const [titleLetters, setTitleLetters] = useState("TubeBrief");
+  const [logoTilt, setLogoTilt] = useState({ x: 0, y: 0 });
+  const [cornerPulse, setCornerPulse] = useState(false);
+  const [dotClicks, setDotClicks] = useState(0);
+  const [statusText, setStatusText] = useState("Live_Node");
+  const glitchIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const headerRef = useRef<HTMLDivElement>(null);
+
+  const GLITCH_CHARS = "!@#$%^&*<>?/|\\[]{}~`";
+  const ORIGINAL_TITLE = "TubeBrief";
+
+  // Glitch the title letters on hover
+  const startTitleGlitch = () => {
+    setTitleGlitch(true);
+    let iterations = 0;
+    const maxIterations = 18;
+
+    if (glitchIntervalRef.current) clearInterval(glitchIntervalRef.current);
+
+    glitchIntervalRef.current = setInterval(() => {
+      setTitleLetters(
+        ORIGINAL_TITLE.split("")
+          .map((char, i) => {
+            if (i < iterations / 2) return ORIGINAL_TITLE[i];
+            return Math.random() > 0.5
+              ? GLITCH_CHARS[Math.floor(Math.random() * GLITCH_CHARS.length)]
+              : char;
+          })
+          .join(""),
+      );
+
+      iterations++;
+      if (iterations >= maxIterations) {
+        clearInterval(glitchIntervalRef.current!);
+        setTitleLetters(ORIGINAL_TITLE);
+        setTitleGlitch(false);
+      }
+    }, 50);
+  };
+
+  // 3D tilt on logo hover
+  const handleLogoMouseMove = (e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const cx = rect.left + rect.width / 2;
+    const cy = rect.top + rect.height / 2;
+    const dx = ((e.clientX - cx) / (rect.width / 2)) * 15;
+    const dy = ((e.clientY - cy) / (rect.height / 2)) * -15;
+    setLogoTilt({ x: dx, y: dy });
+  };
+
+  const handleLogoMouseLeave = () => {
+    setLogoTilt({ x: 0, y: 0 });
+    setLogoGlitch(false);
+  };
+
+  const handleLogoClick = () => {
+    setLogoGlitch(true);
+    setTimeout(() => setLogoGlitch(false), 600);
+  };
+
+  // Corner pulse on card hover
+  const handleCardMouseEnter = () => setCornerPulse(true);
+  const handleCardMouseLeave = () => setCornerPulse(false);
+
+  // Easter egg on status dot click
+  const handleDotClick = () => {
+    const next = dotClicks + 1;
+    setDotClicks(next);
+    const messages = [
+      "Live_Node",
+      "Ping: 2ms",
+      "All_Systems_GO",
+      "👾 Hello!",
+      "Uptime: 99.9%",
+      "Live_Node",
+    ];
+    setStatusText(messages[next % messages.length]);
+  };
+
   return (
-    <>
-      {/* Google Fonts */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=DM+Mono:wght@300;400&display=swap');
+    <main className="relative min-h-screen w-full overflow-hidden bg-fuchsia-500 font-sans selection:bg-red-500/30">
+      {/* Background Shader */}
+      <div className="absolute inset-0 z-0">
+        <HologramShaders
+          speed={0.7}
+          intensity={1.1}
+          stability={0.9}
+          scanlines={1.2}
+          prismatic={1.0}
+          className="opacity-50"
+        />
+      </div>
 
-        .font-display { font-family: 'Cormorant Garamond', serif; }
-        .font-mono-dm { font-family: 'DM Mono', monospace; }
+      {/* Scanline Overlay */}
+      <div className="pointer-events-none absolute inset-0 z-[2] overflow-hidden">
+        <div className="h-[200%] w-full animate-[scanline_10s_linear_infinite] bg-gradient-to-b from-transparent via-red-500/5 to-transparent" />
+      </div>
 
-        @keyframes float-slow {
-          0%, 100% { transform: translateY(0px) rotate(0deg); }
-          50% { transform: translateY(-12px) rotate(1deg); }
-        }
-        @keyframes shimmer-sweep {
-          0% { background-position: -200% center; }
-          100% { background-position: 200% center; }
-        }
-        @keyframes fade-up {
-          from { opacity: 0; transform: translateY(20px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        @keyframes pulse-ring {
-          0%, 100% { opacity: 0.3; transform: scale(1); }
-          50% { opacity: 0.6; transform: scale(1.08); }
-        }
-
-        .animate-float-slow { animation: float-slow 7s ease-in-out infinite; }
-        .animate-shimmer-sweep {
-          background: linear-gradient(90deg, transparent 0%, rgba(217,119,6,0.4) 50%, transparent 100%);
-          background-size: 200% 100%;
-          animation: shimmer-sweep 2.2s linear infinite;
-        }
-        .animate-fade-up { animation: fade-up 0.7s cubic-bezier(0.22,1,0.36,1) both; }
-        .animate-pulse-ring { animation: pulse-ring 3s ease-in-out infinite; }
-
-        .grain::before {
-          content: '';
-          position: fixed;
-          inset: 0;
-          background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.04'/%3E%3C/svg%3E");
-          pointer-events: none;
-          z-index: 0;
-          opacity: 0.35;
-        }
-
-        .glow-amber {
-          box-shadow: 0 0 40px rgba(217,119,6,0.15), 0 0 80px rgba(217,119,6,0.06);
-        }
-        .glow-amber-sm {
-          box-shadow: 0 0 20px rgba(217,119,6,0.2);
-        }
-        .text-amber-glow {
-          text-shadow: 0 0 30px rgba(217,119,6,0.4);
-        }
-        .border-amber-dim {
-          border-color: rgba(217,119,6,0.25);
-        }
-      `}</style>
-
-      <main
-        className="grain relative min-h-screen overflow-hidden"
-        style={{
-          background:
-            "radial-gradient(ellipse 80% 60% at 50% 0%, #1a1208 0%, #0c0c0e 55%, #080809 100%)",
-        }}
-      >
-        {/* Background decorative orbs */}
-        <div className="pointer-events-none fixed inset-0 overflow-hidden">
-          <div
-            className="animate-pulse-ring absolute -top-32 -left-32 h-96 w-96 rounded-full"
-            style={{
-              background:
-                "radial-gradient(circle, rgba(217,119,6,0.08) 0%, transparent 70%)",
-            }}
-          />
-          <div
-            className="animate-pulse-ring absolute -bottom-40 -right-40 h-[500px] w-[500px] rounded-full"
-            style={{
-              animationDelay: "1.5s",
-              background:
-                "radial-gradient(circle, rgba(217,119,6,0.05) 0%, transparent 70%)",
-            }}
-          />
-          {/* Film strip decoration — left edge */}
-          <div
-            className="absolute left-0 top-0 h-full w-px"
-            style={{
-              background:
-                "linear-gradient(to bottom, transparent, rgba(217,119,6,0.2) 30%, rgba(217,119,6,0.2) 70%, transparent)",
-            }}
-          />
-          {/* Horizontal rule lines */}
-          <div
-            className="absolute top-[22%] left-0 right-0 h-px"
-            style={{
-              background:
-                "linear-gradient(to right, transparent, rgba(217,119,6,0.08) 20%, rgba(217,119,6,0.08) 80%, transparent)",
-            }}
-          />
+      {/* Sidebar */}
+      <div className="pointer-events-none fixed left-0 top-0 z-20 hidden h-full w-12 flex-col items-center border-r border-white/5 bg-black/40 py-6 backdrop-blur-md md:flex">
+        <div className="mb-6 h-2 w-2 animate-pulse rounded-full bg-red-600 shadow-[0_0_8px_rgba(220,38,38,0.8)]" />
+        <div className="font-mono text-[10px] uppercase tracking-[0.3em] text-white/40 [writing-mode:vertical-lr]">
+          TubeBrief // Protocol_v1.0.4
         </div>
+      </div>
 
-        {/* Content */}
-        <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-16">
-          <div className="w-full max-w-xl">
-            {/* Header */}
-            <header className="animate-fade-up mb-14 text-center">
-              {/* Icon mark */}
-              <div className="relative mx-auto mb-7 flex h-14 w-14 items-center justify-center">
-                <div
-                  className="animate-pulse-ring absolute inset-0 rounded-xl"
-                  style={{
-                    background: "rgba(217,119,6,0.1)",
-                    border: "1px solid rgba(217,119,6,0.3)",
-                  }}
-                />
-                <svg
-                  className="relative z-10 h-6 w-6"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="rgba(217,119,6,0.9)"
-                  strokeWidth="1.5"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    d="M13 10V3L4 14h7v7l9-11h-7z"
-                  />
-                </svg>
-              </div>
-
-              {/* Title */}
-              <h1
-                className="font-display text-amber-glow mb-2 text-6xl font-light italic tracking-wide"
-                style={{ color: "#f0e8d8" }}
-              >
-                summarize
-              </h1>
-
-              {/* Amber rule */}
-              <div
-                className="mx-auto mb-4 flex items-center gap-3"
-                style={{ width: "fit-content" }}
-              >
-                <div
-                  className="h-px w-12"
-                  style={{
-                    background:
-                      "linear-gradient(to right, transparent, rgba(217,119,6,0.6))",
-                  }}
-                />
-                <div
-                  className="h-1 w-1 rounded-full"
-                  style={{ background: "rgba(217,119,6,0.7)" }}
-                />
-                <div
-                  className="h-px w-12"
-                  style={{
-                    background:
-                      "linear-gradient(to left, transparent, rgba(217,119,6,0.6))",
-                  }}
-                />
-              </div>
-
-              <p
-                className="font-mono-dm text-xs font-light tracking-[0.2em] uppercase"
-                style={{ color: "rgba(240,232,216,0.35)" }}
-              >
-                Transform videos into readable intelligence
-              </p>
-            </header>
-
-            {/* Main card area */}
+      <div className="relative z-10 flex min-h-screen flex-col items-center justify-center px-4 py-16">
+        <div className="w-full max-w-2xl">
+          {/* Header */}
+          <header
+            ref={headerRef}
+            className="group mb-12 text-center cursor-default"
+          >
+            {/* Logo with 3D tilt + glitch on click */}
             <div
-              className="animate-fade-up"
-              style={{ animationDelay: "0.15s" }}
+              className="relative mx-auto mb-6 flex h-20 w-20 items-center justify-center transition-all duration-500 cursor-pointer"
+              style={{
+                transform: `perspective(300px) rotateX(${logoTilt.y}deg) rotateY(${logoTilt.x}deg)`,
+                transition:
+                  logoTilt.x === 0 && logoTilt.y === 0
+                    ? "transform 0.5s ease"
+                    : "transform 0.05s ease",
+              }}
+              onMouseMove={handleLogoMouseMove}
+              onMouseLeave={handleLogoMouseLeave}
+              onClick={handleLogoClick}
             >
+              <div className="absolute inset-0 rounded-2xl border border-white/10 animate-[spin_20s_linear_infinite]" />
+
+              {/* Glitch clone layers */}
+              {logoGlitch && (
+                <>
+                  <Image
+                    src="/TubeBrief.png"
+                    alt=""
+                    width={56}
+                    height={56}
+                    aria-hidden
+                    className="absolute z-10 rounded-sm opacity-70 animate-[glitch-r_0.3s_steps(2)_infinite]"
+                    style={{
+                      filter: "hue-rotate(90deg) saturate(3)",
+                      transform: "translate(3px, -2px)",
+                    }}
+                  />
+                  <Image
+                    src="/TubeBrief.png"
+                    alt=""
+                    width={56}
+                    height={56}
+                    aria-hidden
+                    className="absolute z-10 rounded-sm opacity-70 animate-[glitch-l_0.3s_steps(2)_infinite]"
+                    style={{
+                      filter: "hue-rotate(200deg) saturate(3)",
+                      transform: "translate(-3px, 2px)",
+                    }}
+                  />
+                </>
+              )}
+
+              <Image
+                src="/TubeBrief.png"
+                alt="TubeBrief"
+                width={56}
+                height={56}
+                className={`relative z-10 rounded-sm transition-all duration-150 ${logoGlitch ? "opacity-80" : ""}`}
+              />
+            </div>
+
+            {/* Title with per-letter glitch on hover */}
+            <h1
+              className={`font-mono-hack text-4xl font-bold tracking-tighter text-white sm:text-5xl cursor-pointer select-none transition-all duration-100 ${titleGlitch ? "text-shadow-glitch" : ""}`}
+              onMouseEnter={startTitleGlitch}
+              title="TubeBrief"
+            >
+              {titleLetters.split("").map((char, i) => (
+                <span
+                  key={i}
+                  className="inline-block transition-all duration-75"
+                  style={{
+                    color:
+                      titleGlitch && Math.random() > 0.7
+                        ? "#ef4444"
+                        : undefined,
+                    transform:
+                      titleGlitch && char !== ORIGINAL_TITLE[i]
+                        ? `translateY(${(Math.random() - 0.5) * 4}px)`
+                        : undefined,
+                  }}
+                >
+                  {char}
+                </span>
+              ))}
+            </h1>
+
+            <p className="mt-4 font-mono-hack text-[10px] font-bold uppercase tracking-[0.3em] text-white/40">
+              Neural Processor v2.2
+            </p>
+
+            <p className="mx-auto mt-6 max-w-lg text-sm leading-relaxed text-white/60 sm:text-base">
+              Summarise and get insights on YouTube videos instantly.
+            </p>
+          </header>
+
+          {/* Input Container */}
+          <div
+            className="relative"
+            onMouseEnter={handleCardMouseEnter}
+            onMouseLeave={handleCardMouseLeave}
+          >
+            {/* Decorative Corners — pulse red on hover */}
+            <div
+              className={`absolute -left-1 -top-1 h-6 w-6 border-l-2 border-t-2 transition-all duration-300 ${
+                cornerPulse
+                  ? "border-red-400 shadow-[0_0_8px_rgba(248,113,113,0.6)]"
+                  : "border-red-600"
+              }`}
+            />
+            <div
+              className={`absolute -bottom-1 -right-1 h-6 w-6 border-b-2 border-r-2 transition-all duration-300 ${
+                cornerPulse
+                  ? "border-white/60 shadow-[0_0_8px_rgba(255,255,255,0.2)]"
+                  : "border-white/30"
+              }`}
+            />
+
+            <Card className="overflow-hidden rounded-none border border-white/10 bg-white/[0.03] p-1 shadow-2xl backdrop-blur-xl">
               {!summary && !loading ? (
-                <UrlInput
-                  onSummary={setSummary}
-                  onLoading={setLoading}
-                  onError={setError}
-                />
+                <div className="bg-stone-50">
+                  <UrlInput
+                    onSummary={setSummary}
+                    onLoading={setLoading}
+                    onError={setError}
+                  />
+                </div>
               ) : (
                 <SummaryDisplay
                   summary={summary}
@@ -202,39 +259,82 @@ export default function Page() {
                   }}
                 />
               )}
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div
-                className="animate-fade-up mt-5 rounded-lg border px-5 py-4"
-                style={{
-                  borderColor: "rgba(239,68,68,0.25)",
-                  background: "rgba(239,68,68,0.06)",
-                }}
-              >
-                <p
-                  className="font-mono-dm text-xs"
-                  style={{ color: "rgba(252,165,165,0.9)" }}
-                >
-                  ⚠ {error}
-                </p>
-              </div>
-            )}
-
-            {/* Footer */}
-            <p
-              className="font-mono-dm mt-14 text-center text-xs"
-              style={{
-                color: "rgba(240,232,216,0.18)",
-                letterSpacing: "0.12em",
-              }}
-            >
-              paste · process · read
-            </p>
+            </Card>
           </div>
+
+          {/* Error Alert */}
+          {error && (
+            <div className="mt-6 animate-in fade-in slide-in-from-top-1 border-l-2 border-red-500 bg-red-500/10 p-4 font-mono text-[11px] text-red-400 backdrop-blur-md">
+              <span className="font-bold uppercase underline">
+                System_Fault:
+              </span>{" "}
+              {error}
+            </div>
+          )}
+
+          {/* Footer */}
+          <footer className="mt-20 flex flex-col items-center gap-6 opacity-40 transition-opacity hover:opacity-100">
+            <div className="flex gap-8 font-mono text-[10px] font-medium uppercase tracking-widest text-white/60">
+              {/* Clickable status dot easter egg */}
+              <div
+                className="flex items-center gap-2 cursor-pointer select-none transition-all duration-200 hover:text-white/90"
+                onClick={handleDotClick}
+                title="Click me"
+              >
+                <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-500" />
+                {statusText}
+              </div>
+
+              <div className="hidden sm:block">Env: Production</div>
+              <div>STABLE_0.4</div>
+            </div>
+            <p className="font-mono text-[9px] text-white/20">
+              © 2026 TubeBrief Intelligence Systems. Encryption: AES-256
+            </p>
+          </footer>
         </div>
-      </main>
-    </>
+      </div>
+
+      <style jsx global>{`
+        @keyframes scanline {
+          0% {
+            transform: translateY(-100%);
+          }
+          100% {
+            transform: translateY(100%);
+          }
+        }
+        @keyframes glitch-r {
+          0%,
+          100% {
+            clip-path: inset(0 0 80% 0);
+          }
+          25% {
+            clip-path: inset(30% 0 40% 0);
+          }
+          50% {
+            clip-path: inset(60% 0 10% 0);
+          }
+          75% {
+            clip-path: inset(10% 0 70% 0);
+          }
+        }
+        @keyframes glitch-l {
+          0%,
+          100% {
+            clip-path: inset(20% 0 60% 0);
+          }
+          25% {
+            clip-path: inset(50% 0 20% 0);
+          }
+          50% {
+            clip-path: inset(5% 0 85% 0);
+          }
+          75% {
+            clip-path: inset(70% 0 5% 0);
+          }
+        }
+      `}</style>
+    </main>
   );
 }
